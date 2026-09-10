@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { supabase } from "../lib/supabase";
 
 const services = [
   {
@@ -35,9 +36,9 @@ export default function Home() {
     },
   ]);
 
-  const businessId = "gym-demo";
+  const businessId = "11111111-1111-1111-1111-111111111111";
 
-  function sendMessage(text?: string) {
+  async function sendMessage(text?: string) {
     const finalMessage = text ?? message;
 
     if (!finalMessage.trim()) return;
@@ -55,6 +56,19 @@ export default function Home() {
     ]);
 
     setMessage("");
+
+    // Test the new Supabase connection
+    const { error } = await supabase
+      .from("businesses")
+      .select("id, name, type")
+      .eq("id", businessId)
+      .single();
+
+    if (error) {
+      console.error("Supabase connection error:", error);
+    } else {
+      console.log("Supabase connection successful!");
+    }
   }
 
   function getDemoReply(text: string) {
@@ -85,11 +99,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#080b0f] text-white">
-      {/* Demo business ID */}
-      <div
-        data-business-id={businessId}
-        className="hidden"
-      />
+      <div data-business-id={businessId} className="hidden" />
 
       {/* NAVBAR */}
       <nav className="fixed left-0 right-0 top-0 z-40 border-b border-white/10 bg-[#080b0f]/90 backdrop-blur-xl">
@@ -252,9 +262,7 @@ export default function Home() {
             >
               <div className="mb-8 text-4xl">{service.icon}</div>
 
-              <h3 className="text-xl font-bold">
-                {service.title}
-              </h3>
+              <h3 className="text-xl font-bold">{service.title}</h3>
 
               <p className="mt-3 min-h-[55px] text-sm leading-6 text-gray-400">
                 {service.description}
@@ -324,9 +332,7 @@ export default function Home() {
         className="border-t border-white/10 px-6 py-10"
       >
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-sm text-gray-500 md:flex-row">
-          <div>
-            © 2026 PeakFit Gym. Demo website.
-          </div>
+          <div>© 2026 PeakFit Gym. Demo website.</div>
 
           <div>
             AI Receptionist Demo • Business ID: {businessId}
@@ -354,9 +360,7 @@ export default function Home() {
               </div>
 
               <div>
-                <div className="font-bold">
-                  PeakFit AI Receptionist
-                </div>
+                <div className="font-bold">PeakFit AI Receptionist</div>
 
                 <div className="flex items-center gap-1 text-xs text-gray-400">
                   <span className="h-2 w-2 rounded-full bg-green-400" />
