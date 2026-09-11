@@ -1,0 +1,155 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+
+    const {
+      businessId,
+      serviceName,
+      customerName,
+      customerContact,
+      appointmentDate,
+      appointmentTime,
+    } = body;
+
+    if (
+      !businessId ||
+      !serviceName ||
+      !customerName ||
+      !appointmentDate ||
+      !appointmentTime
+    ) {
+      return NextResponse.json(
+        {
+          error: "Missing required booking information.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: business, error: businessError } = await supabase
+      .from("businesses")
+      .select("id, name, type")
+      .eq("id", businessId)
+      .single();
+
+    if (businessError || !business) {
+      return NextResponse.json(
+        {
+          error: "Business not found.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const { data: service, error: serviceError } = await supabase
+      .from("services")
+      .select("id, name, duration_minutes, price")
+      .eq("business_id", businessId)
+      .eq("name", serviceName)
+      .single();
+
+    if (serviceError || !service) {
+      return NextResponse.json(
+        {
+          error: "Service not found for this business.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const normalizedTime =
+      appointmentTime.length === 5
+        ? `${appointmentTime}:00`
+        : appointmentTime;
+
+    const { data: existingAppointment, error: existingError } =
+      await supabase
+        .from("appointments")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("appointment_date", appointmentDate)
+        .eq("appointment_time", normalizedTime)
+        .maybeSingle();
+
+    if (existingError) {
+      console.error("Availability check error:", existingError);
+
+      return NextResponse.json(
+        {
+          error: "Could not check appointment availability.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (existingAppointment) {
+      return NextResponse.json(
+        {
+          error: "This time slot is already booked.",
+          code: "SLOT_BOOKED",
+        },
+        { status: 409 }
+      );
+    }
+
+    const { data: appointment, error: appointmentError } =
+      await supabase
+        .from("appointments")
+        .insert({
+          business_id: businessId,
+          service_id: service.id,
+          customer_name: customerName,
+          customer_contact: customerContact || null,
+          appointment_date: appointmentDate,
+          appointment_time: normalizedTime,
+          status: "confirmed",
+        })
+        .select()
+        .single();
+
+    if (appointmentError) {
+      console.error("Appointment insert error:", appointmentError);
+
+      if (appointmentError.code === "23505") {
+        return NextResponse.json(
+          {
+            error: "This time slot was just booked by someone else.",
+            code: "SLOT_BOOKED",
+          },
+          { status: 409 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          error: "Could not create appointment.",
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      business,
+      service,
+      appointment,
+    });
+  } catch (error) {
+    console.error("Booking API error:", error);
+
+    return NextResponse.json(
+      {
+        error: "Something went wrong.",
+      },
+      { status: 500 }
+    );
+  }
+}
